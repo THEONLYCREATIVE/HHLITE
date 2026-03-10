@@ -1,853 +1,712 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#00aa88">
+  <meta name="theme-color" content="#001f1f">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Expiry Tracker</title>
+  <title>GS1 Expiry Tracker</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <style>
     :root {
-      --primary: #00aa88;
-      --primary-dark: #008866;
-      --bg: #0a0a0f;
-      --bg-card: #141420;
-      --bg-input: #1a1a28;
-      --text: #ffffff;
-      --text-muted: #888;
-      --border: #2a2a3a;
-      --expired: #ff4757;
-      --expiring: #ffa502;
-      --ok: #2ed573;
-      --api: #3498db;
-      --radius: 12px;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
-    
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    body {
-      font-family: 'Inter', -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      min-height: 100dvh;
-      overflow-x: hidden;
-    }
-    
-    /* Splash Screen */
-    #splash {
-      position: fixed;
-      inset: 0;
-      background: linear-gradient(135deg, var(--bg) 0%, #1a1a2e 100%);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 9999;
-      transition: opacity 0.5s, visibility 0.5s;
-    }
-    #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-    .splash-icon { font-size: 4rem; margin-bottom: 1rem; animation: bounce 1s infinite; }
-    .splash-title { font-size: 1.5rem; font-weight: 700; color: var(--primary); letter-spacing: 2px; }
-    .splash-version { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
-    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-    
-    /* App Container */
-    #app { opacity: 0; transition: opacity 0.5s; display: flex; flex-direction: column; min-height: 100vh; }
-    #app.visible { opacity: 1; }
-    
-    /* Header */
-    .header {
-      background: var(--bg-card);
-      padding: 1rem;
-      padding-top: calc(var(--safe-top) + 1rem);
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      border-bottom: 1px solid var(--border);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .header-title { flex: 1; font-size: 1.25rem; font-weight: 700; }
-    .header-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
-      background: var(--bg-input);
-      border: none;
-      color: var(--text);
-      font-size: 1.25rem;
-      cursor: pointer;
-    }
-    .api-indicator {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-left: 4px;
-    }
-    .api-indicator.on { background: var(--ok); }
-    .api-indicator.off { background: var(--expired); }
-    
-    /* Pages */
-    .page { display: none; flex: 1; padding: 1rem; padding-bottom: calc(80px + var(--safe-bottom)); overflow-y: auto; }
-    .page.active { display: block; }
-    
-    /* Stats */
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.75rem;
-      margin-bottom: 1.5rem;
-    }
-    .stat {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      padding: 1rem;
-      text-align: center;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      transition: transform 0.2s;
-    }
-    .stat:active { transform: scale(0.95); }
-    .stat-value { font-size: 2rem; font-weight: 700; font-family: monospace; }
-    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
-    .stat.expired .stat-value { color: var(--expired); }
-    .stat.expiring .stat-value { color: var(--expiring); }
-    .stat.ok .stat-value { color: var(--ok); }
-    
-    /* Input Area */
-    .input-section { margin-bottom: 1.5rem; }
-    .input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
-    .input-field {
-      flex: 1;
-      padding: 1rem;
-      background: var(--bg-input);
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 1rem;
-      font-family: monospace;
-    }
-    .input-field:focus { outline: none; border-color: var(--primary); }
-    .input-field::placeholder { color: var(--text-muted); }
-    
-    .btn {
-      padding: 1rem 1.5rem;
-      background: var(--primary);
-      border: none;
-      border-radius: var(--radius);
-      color: white;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: background 0.2s;
-    }
-    .btn:hover { background: var(--primary-dark); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn.active { background: var(--expired); }
-    .btn-outline {
-      background: transparent;
-      border: 2px solid var(--border);
-      color: var(--text);
-    }
-    .btn-danger { background: var(--expired); }
-    .btn-block { width: 100%; justify-content: center; }
-    
-    /* Scanner */
-    #scannerBox {
-      display: none;
-      margin-bottom: 1rem;
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: #000;
-    }
-    #scannerBox.active { display: block; }
-    #reader { width: 100%; }
-    #reader video { border-radius: var(--radius); }
-    
-    /* Product Scan Prompt - NEW */
-    #productScanPrompt {
-      display: none;
-      background: linear-gradient(135deg, #1a1a2e, #2a2a4e);
-      border: 2px solid var(--expiring);
-      border-radius: var(--radius);
-      padding: 1rem;
-      margin-bottom: 1rem;
-      animation: pulse-border 2s infinite;
-    }
-    #productScanPrompt.active { display: block; }
-    @keyframes pulse-border {
-      0%, 100% { border-color: var(--expiring); }
-      50% { border-color: var(--primary); }
-    }
-    .prompt-title {
-      font-size: 1rem;
-      font-weight: 600;
-      color: var(--expiring);
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .prompt-data {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      font-size: 0.85rem;
-    }
-    .prompt-item { background: var(--bg-input); padding: 0.5rem; border-radius: 6px; }
-    .prompt-label { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; }
-    .prompt-value { font-family: monospace; margin-top: 2px; }
-    .prompt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
-    .prompt-actions .btn { flex: 1; padding: 0.75rem; font-size: 0.85rem; }
-    
-    /* Bulk Area */
-    .bulk-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0.75rem 1rem;
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      cursor: pointer;
-      margin-bottom: 0.5rem;
-    }
-    .bulk-toggle.collapsed .bulk-arrow { transform: rotate(-90deg); }
-    .bulk-arrow { transition: transform 0.2s; }
-    .bulk-count { font-size: 0.8rem; color: var(--text-muted); }
-    #bulkArea { margin-bottom: 1rem; }
-    #bulkArea.hidden { display: none; }
-    #inputBulk {
-      width: 100%;
-      height: 120px;
-      padding: 1rem;
-      background: var(--bg-input);
-      border: 2px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: monospace;
-      font-size: 0.9rem;
-      resize: vertical;
-      margin-bottom: 0.5rem;
-    }
-    #bulkProgress {
-      display: none;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-      margin-bottom: 0.5rem;
-      overflow: hidden;
-    }
-    #bulkProgress.active { display: block; }
-    #bulkProgressFill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s; }
-    #bulkProgressText { display: none; font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-bottom: 0.5rem; }
-    #bulkProgressText.active { display: block; }
-    
-    /* Item Cards */
-    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-muted); }
-    .item-card {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      padding: 1rem;
-      margin-bottom: 0.75rem;
-      border-left: 4px solid var(--border);
-      transition: transform 0.2s;
-    }
-    .item-card:active { transform: scale(0.98); }
-    .item-card.expired { border-left-color: var(--expired); }
-    .item-card.expiring { border-left-color: var(--expiring); }
-    .item-card.ok { border-left-color: var(--ok); }
-    .item-card.api { border-left-color: var(--api); background: linear-gradient(135deg, var(--bg-card), rgba(52, 152, 219, 0.1)); }
-    .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
-    .item-name { font-weight: 600; font-size: 0.95rem; flex: 1; margin-right: 0.5rem; }
-    .item-badge {
-      font-size: 0.7rem;
-      padding: 4px 8px;
-      border-radius: 20px;
-      background: var(--bg-input);
-      font-family: monospace;
-    }
-    .item-details { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; }
-    .item-detail-label { color: var(--text-muted); }
-    .item-detail-value { font-family: monospace; }
-    .status-expired { color: var(--expired); }
-    .status-expiring { color: var(--expiring); }
-    .status-ok { color: var(--ok); }
-    .item-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
-    .item-btn {
-      flex: 1;
-      padding: 0.5rem;
-      border: none;
-      border-radius: 6px;
-      background: var(--bg-input);
-      color: var(--text);
-      font-size: 0.8rem;
-      cursor: pointer;
-    }
-    .item-btn.delete:hover { background: var(--expired); }
-    
-    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
-    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
-    .empty-title { font-size: 1.1rem; margin-bottom: 0.5rem; }
-    
-    /* History Page */
-    .search-bar {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-    }
-    .filter-tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1rem;
-      overflow-x: auto;
-      padding-bottom: 0.5rem;
-    }
-    .filter-tab {
-      padding: 0.5rem 1rem;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .filter-tab.active { background: var(--primary); border-color: var(--primary); color: white; }
-    
-    /* Settings Page */
-    .settings-card {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      padding: 1rem;
-      margin-bottom: 1rem;
-      border: 1px solid var(--border);
-    }
-    .settings-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .settings-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; }
-    .settings-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.75rem 0;
-      border-bottom: 1px solid var(--border);
-    }
-    .settings-row:last-child { border-bottom: none; }
-    
-    /* Toggle Switch */
-    .toggle {
-      position: relative;
-      width: 50px;
-      height: 28px;
-    }
-    .toggle input { display: none; }
-    .toggle-slider {
-      position: absolute;
-      inset: 0;
-      background: var(--border);
-      border-radius: 28px;
-      cursor: pointer;
-      transition: background 0.3s;
-    }
-    .toggle-slider::before {
-      content: '';
-      position: absolute;
-      width: 22px;
-      height: 22px;
-      left: 3px;
-      top: 3px;
-      background: white;
-      border-radius: 50%;
-      transition: transform 0.3s;
-    }
-    .toggle input:checked + .toggle-slider { background: var(--primary); }
-    .toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
-    
-    /* Bottom Navigation */
-    .nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--bg-card);
-      border-top: 1px solid var(--border);
-      display: flex;
-      padding-bottom: var(--safe-bottom);
-      z-index: 100;
-    }
-    .nav-btn {
-      flex: 1;
-      padding: 0.75rem;
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.7rem;
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-    }
-    .nav-btn.active { color: var(--primary); }
-    .nav-icon { font-size: 1.25rem; }
-    
-    /* Side Menu */
-    #menuOverlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.5);
-      z-index: 200;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
-    }
-    #menuOverlay.active { opacity: 1; visibility: visible; }
-    #sideMenu {
-      position: fixed;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      width: 280px;
-      background: var(--bg-card);
-      z-index: 201;
-      transform: translateX(-100%);
-      transition: transform 0.3s;
-      padding: 2rem 1rem;
-      padding-top: calc(var(--safe-top) + 2rem);
-    }
-    #sideMenu.active { transform: translateX(0); }
-    .menu-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 2rem; }
-    .menu-item {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      border-radius: var(--radius);
-      cursor: pointer;
-      color: var(--text);
-      text-decoration: none;
-    }
-    .menu-item:hover { background: var(--bg-input); }
-    .menu-divider { height: 1px; background: var(--border); margin: 1rem 0; }
-    
-    /* Modals */
-    .modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.8);
-      z-index: 300;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
-    }
-    .modal.active { opacity: 1; visibility: visible; }
-    .modal-content {
-      background: var(--bg-card);
-      border-radius: var(--radius);
-      width: 100%;
-      max-width: 400px;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
-    .modal-header {
-      padding: 1rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .modal-title { font-size: 1.1rem; font-weight: 600; }
-    .modal-close {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--bg-input);
-      border: none;
-      color: var(--text);
-      font-size: 1.25rem;
-      cursor: pointer;
-    }
-    .modal-body { padding: 1rem; }
-    .form-group { margin-bottom: 1rem; }
-    .form-label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
-    .form-input {
-      width: 100%;
-      padding: 0.75rem;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 1rem;
-    }
-    .form-input:focus { outline: none; border-color: var(--primary); }
-    .modal-footer { padding: 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; }
-    .modal-footer .btn { flex: 1; }
-    
-    /* Loading */
-    #loading {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.9);
-      z-index: 400;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      opacity: 0;
-      visibility: hidden;
-      transition: opacity 0.3s, visibility 0.3s;
-    }
-    #loading.active { opacity: 1; visibility: visible; }
-    .spinner {
-      width: 48px;
-      height: 48px;
-      border: 3px solid var(--border);
-      border-top-color: var(--primary);
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    #loadingText { margin-top: 1rem; color: var(--text-muted); }
-    
-    /* Toasts */
-    #toasts {
-      position: fixed;
-      bottom: calc(80px + var(--safe-bottom));
-      left: 1rem;
-      right: 1rem;
-      z-index: 500;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-      pointer-events: none;
-    }
-    .toast {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      padding: 0.75rem 1rem;
-      border-radius: var(--radius);
-      font-size: 0.9rem;
-      animation: slideUp 0.3s;
-      transition: opacity 0.3s;
-    }
-    .toast.success { border-color: var(--ok); background: rgba(46, 213, 115, 0.1); }
-    .toast.error { border-color: var(--expired); background: rgba(255, 71, 87, 0.1); }
-    .toast.warning { border-color: var(--expiring); background: rgba(255, 165, 2, 0.1); }
-    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+      /* ── Burnt Terra Palette ── */
+      --primary:       #c7522a;   /* burnt sienna — main brand / borders */
+      --primary-dark:  #7a2f10;   /* deep ember */
+      --teal:          #74a892;   /* sage green  — ok/success */
+      --teal-dark:     #008585;   /* deep teal */
+      --orange:        #e5c185;   /* warm sand   — warning */
+      --red:           #EF4444;   /* keep red for expired */
+
+```
+  /* Surfaces */
+  --bg:    #001f1f;           /* teal black — page background */
+  --card:  #0d2e2e;           /* slightly lighter dark teal */
+  --card2: #112e2b;           /* alternate card surface */
+
+  /* Text */
+  --text:  #f0ede8;
+  --text2: #9dc4b8;           /* sage-tinted muted */
+  --text3: #4a7a72;           /* dim muted */
+
+  --shadow: 0 2px 8px rgba(0,0,0,0.35);
+  --r: 12px; --rl: 20px;
+  --hdr: 52px; --nav: 60px;
+}
+
+body.dark-mode {
+  --bg:    #000f0f;
+  --card:  #0a2020;
+  --text2: #74a892;
+  --text3: #2a5a54;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+.app { min-height: 100vh; }
+
+/* ── Header ── */
+.hdr {
+  position: sticky; top: 0; z-index: 100;
+  height: var(--hdr); padding: 0 12px;
+  background: linear-gradient(90deg, #001f1f 0%, #0d2e2e 100%);
+  border-bottom: 2px solid var(--primary);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.logo { display: flex; align-items: center; gap: 8px; color: #fff; font-weight: 700; }
+.logo img { width: 28px; height: 28px; border-radius: 6px; background: var(--primary); }
+.logo span {
+  background: linear-gradient(135deg, #e5c185 0%, #74a892 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hdr-btns { display: flex; gap: 6px; }
+.hdr-btn {
+  width: 32px; height: 32px;
+  background: rgba(199,82,42,0.15);
+  border: 1px solid rgba(199,82,42,0.35);
+  border-radius: 8px; color: #e5c185;
+  font-size: 1rem; cursor: pointer;
+}
+
+/* ── Main ── */
+.main { padding: 12px; padding-bottom: calc(var(--nav) + 20px); }
+.page { display: none; }
+.page.active { display: block; }
+
+/* ── Scanner Card ── */
+.scan-card {
+  background: linear-gradient(135deg, #0d2e2e 0%, #001f1f 100%);
+  border: 1px solid var(--primary);
+  border-radius: var(--rl); padding: 16px; margin-bottom: 12px;
+  box-shadow: 0 0 24px rgba(199,82,42,0.12);
+}
+.scan-title { color: #e5c185; font-size: 1rem; font-weight: 600; }
+.scan-sub   { color: var(--text2); font-size: 0.75rem; margin-bottom: 12px; }
+.scan-frame {
+  width: 100%; max-width: 280px; aspect-ratio: 1.5;
+  margin: 0 auto 12px;
+  background: rgba(0,0,0,0.5);
+  border-radius: var(--r);
+  border: 1px solid rgba(199,82,42,0.25);
+  position: relative; overflow: hidden;
+}
+#reader { width: 100% !important; height: 100% !important; }
+#reader video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+#reader__scan_region, #reader__dashboard_section, #reader img, #reader a { display: none !important; }
+.scan-ph {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--text3);
+}
+.scan-ph.hidden { display: none; }
+.scan-ph span { font-size: 2.5rem; }
+
+/* viewfinder corners — sienna */
+.vf { position: absolute; inset: 12px; display: none; }
+.vf.active { display: block; }
+.corner { position: absolute; width: 16px; height: 16px; border: 2px solid var(--primary); }
+.corner.tl { top:0;left:0;border-right:none;border-bottom:none; }
+.corner.tr { top:0;right:0;border-left:none;border-bottom:none; }
+.corner.bl { bottom:0;left:0;border-right:none;border-top:none; }
+.corner.br { bottom:0;right:0;border-left:none;border-top:none; }
+.scan-line {
+  position: absolute; left: 5%; right: 5%; height: 2px;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  animation: sl 2s infinite; display: none;
+}
+.vf.active .scan-line { display: block; }
+@keyframes sl { 0%,100%{top:10%} 50%{top:90%} }
+
+.scan-btn {
+  width: 100%; padding: 10px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border: none; border-radius: var(--r);
+  font-weight: 600; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  box-shadow: 0 4px 16px rgba(199,82,42,0.3);
+}
+.scan-btn.stop { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+
+/* ── Input Card ── */
+.input-card {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--r); padding: 12px; margin-bottom: 12px;
+  box-shadow: var(--shadow);
+}
+.input-label {
+  font-size: 0.65rem; font-weight: 600;
+  color: var(--text3); text-transform: uppercase; margin-bottom: 6px;
+}
+.input-row { display: flex; gap: 8px; }
+.text-input {
+  flex: 1; padding: 10px;
+  background: var(--bg);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem; color: var(--text);
+  outline: none;
+}
+.text-input:focus { border-color: var(--primary); }
+.add-btn {
+  padding: 10px 14px;
+  background: var(--primary);
+  border: none; border-radius: 8px;
+  font-weight: 600; color: #fff; cursor: pointer;
+}
+
+/* ── Section ── */
+.sec-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.sec-title { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.sec-link { font-size: 0.75rem; font-weight: 600; color: var(--orange); cursor: pointer; }
+
+/* ── History List ── */
+.history-list { display: flex; flex-direction: column; gap: 8px; }
+.history-item {
+  background: var(--card);
+  border-radius: var(--r); padding: 10px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: var(--shadow);
+  border-left: 3px solid var(--teal);   /* sage = ok */
+  cursor: pointer;
+}
+.history-item.expired  { border-left-color: var(--red); }
+.history-item.expiring { border-left-color: var(--primary); }  /* sienna = warning */
+.item-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; color: #fff;
+}
+.item-info { flex: 1; min-width: 0; }
+.item-name { font-size: 0.8rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-details { font-size: 0.65rem; color: var(--text2); }
+
+/* badges */
+.badge { padding: 2px 6px; border-radius: 10px; font-size: 0.55rem; font-weight: 700; }
+.badge-ok       { background: rgba(116,168,146,0.2); color: var(--teal); }
+.badge-expiring { background: rgba(199,82,42,0.2);   color: var(--primary); }
+.badge-expired  { background: rgba(239,68,68,0.15);  color: var(--red); }
+
+.qty-controls { display: flex; align-items: center; gap: 3px; }
+.qty-btn {
+  width: 24px; height: 24px; border: none; border-radius: 6px;
+  background: rgba(199,82,42,0.15); color: var(--primary);
+  font-weight: 700; cursor: pointer;
+}
+.qty-value { min-width: 18px; text-align: center; font-weight: 700; font-size: 0.8rem; }
+.empty-state { text-align: center; padding: 24px; color: var(--text3); }
+.empty-state span { font-size: 2rem; display: block; margin-bottom: 6px; }
+
+/* ── Search ── */
+.search-bar { position: relative; margin-bottom: 10px; }
+.search-bar input {
+  width: 100%; padding: 10px 10px 10px 36px;
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--r); font-size: 0.85rem;
+  color: var(--text); outline: none;
+  box-shadow: var(--shadow);
+}
+.search-bar input:focus { border-color: var(--primary); }
+.search-bar svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: var(--text3); }
+
+.chips { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 12px; }
+.chip {
+  padding: 5px 10px;
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: 12px;
+  font-size: 0.7rem; font-weight: 500;
+  color: var(--text2); cursor: pointer; white-space: nowrap;
+}
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+/* ── Bulk ── */
+.bulk-card {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--rl); padding: 16px; box-shadow: var(--shadow);
+}
+.bulk-ta {
+  width: 100%; min-height: 100px; padding: 10px;
+  background: var(--bg);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--r);
+  font-family: monospace; font-size: 0.8rem;
+  color: var(--text); resize: vertical; margin-bottom: 10px;
+  outline: none;
+}
+.bulk-ta:focus { border-color: var(--primary); }
+.btn-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.btn { flex: 1; padding: 10px; border: none; border-radius: var(--r); font-weight: 600; cursor: pointer; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff;
+}
+.btn-ghost { background: rgba(255,255,255,0.05); color: var(--text2); border: 1px solid rgba(255,255,255,0.08); }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat {
+  background: var(--bg);
+  border: 1px solid rgba(199,82,42,0.15);
+  border-radius: var(--r); padding: 12px; text-align: center;
+}
+.stat-num { font-size: 1.2rem; font-weight: 700; color: var(--orange); }
+.stat-label { font-size: 0.55rem; color: var(--text3); text-transform: uppercase; }
+
+/* ── Settings ── */
+.settings-sec {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--r); margin-bottom: 10px;
+  overflow: hidden; box-shadow: var(--shadow);
+}
+.settings-hdr {
+  padding: 12px 14px;
+  background: linear-gradient(90deg, rgba(199,82,42,0.25) 0%, rgba(0,133,133,0.15) 100%);
+  border-bottom: 1px solid rgba(199,82,42,0.2);
+  color: var(--orange); font-weight: 600; font-size: 0.85rem;
+}
+.settings-body { padding: 12px 14px; }
+.upload-area {
+  padding: 20px;
+  border: 2px dashed rgba(199,82,42,0.35);
+  border-radius: var(--r); text-align: center; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-area:hover { border-color: var(--primary); }
+.upload-area span { font-size: 1.5rem; }
+.upload-area p { font-size: 0.8rem; color: var(--text2); }
+
+.toggle-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.toggle-item:last-child { border: none; }
+.toggle-item span { font-size: 0.85rem; }
+.toggle {
+  width: 40px; height: 22px;
+  background: var(--text3); border-radius: 11px;
+  position: relative; cursor: pointer;
+}
+.toggle::after {
+  content: ''; position: absolute;
+  width: 16px; height: 16px; background: #fff;
+  border-radius: 50%; top: 3px; left: 3px; transition: 0.2s;
+}
+.toggle.on { background: var(--primary); }
+.toggle.on::after { left: 21px; }
+
+.export-btn {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, var(--teal-dark) 0%, var(--teal) 100%);
+  border: none; border-radius: var(--r);
+  font-weight: 600; color: #fff; cursor: pointer; margin-top: 6px;
+}
+.export-btn:nth-child(2) {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+}
+.danger-btn { background: linear-gradient(135deg, #ef4444, #b91c1c) !important; }
+
+/* ── Nav ── */
+.nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--nav);
+  background: #001414;
+  border-top: 2px solid var(--primary);
+  display: flex; z-index: 100;
+}
+.nav-btn {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  background: none; border: none;
+  color: var(--text3); cursor: pointer;
+  transition: color 0.2s;
+}
+.nav-btn.active { color: var(--primary); }
+.nav-btn span:first-child { font-size: 1.2rem; }
+.nav-btn span:last-child { font-size: 0.55rem; font-weight: 600; }
+
+/* ── Modals ── */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none; align-items: center; justify-content: center;
+  z-index: 200; padding: 12px;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.3);
+  border-radius: var(--rl);
+  width: 100%; max-width: 340px; max-height: 85vh; overflow-y: auto;
+}
+.modal-head {
+  padding: 14px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff; font-weight: 600; text-align: center;
+}
+.modal-body { padding: 14px; }
+.form-group { margin-bottom: 10px; }
+.form-label { display: block; font-size: 0.6rem; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
+.form-control {
+  width: 100%; padding: 9px 10px;
+  background: var(--bg);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: 8px; font-size: 0.85rem; color: var(--text);
+  outline: none;
+}
+.form-control:focus { border-color: var(--primary); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+/* ── Side Menu ── */
+.side-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150; display: none; }
+.side-bg.show { display: block; }
+.side-menu {
+  position: fixed; top: 0; right: -240px; width: 240px; height: 100%;
+  background: var(--card);
+  border-left: 2px solid var(--primary);
+  z-index: 151; transition: right 0.3s; padding: 16px;
+}
+.side-menu.show { right: 0; }
+.side-menu h3 { font-size: 0.95rem; margin-bottom: 16px; color: var(--orange); }
+.side-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(199,82,42,0.1);
+  cursor: pointer; color: var(--text2); font-size: 0.85rem;
+}
+.side-item:hover { color: var(--primary); }
+
+/* ── Toast ── */
+.toast-wrap {
+  position: fixed; top: calc(var(--hdr) + 8px);
+  left: 8px; right: 8px; z-index: 300;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.toast {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  border-radius: var(--r); padding: 8px 12px;
+  box-shadow: var(--shadow);
+  display: flex; align-items: center; gap: 8px;
+  animation: ti 0.3s; transition: opacity 0.3s;
+}
+@keyframes ti { from { opacity: 0; transform: translateY(-10px); } }
+.toast-icon {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 0.8rem; font-weight: 700;
+}
+.toast.success .toast-icon { background: var(--teal); }
+.toast.error   .toast-icon { background: var(--red); }
+.toast.warning .toast-icon { background: var(--primary); }
+.toast.info    .toast-icon { background: var(--teal-dark); }
+.toast span { font-size: 0.8rem; font-weight: 500; }
+
+/* ── Scan Result Widget ── */
+.scan-result-widget {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: none; align-items: flex-end; justify-content: center;
+  z-index: 250; padding: 0;
+}
+.scan-result-widget.show { display: flex; }
+.srw-header {
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  border-radius: 20px 20px 0 0;
+}
+.srw-header.found    { background: linear-gradient(135deg, var(--teal-dark), var(--teal)); color: #fff; }
+.srw-header.notfound { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; }
+.srw-icon  { font-size: 1.3rem; }
+.srw-title { flex: 1; font-weight: 600; }
+.srw-close {
+  background: rgba(255,255,255,0.2); border: none;
+  width: 28px; height: 28px; border-radius: 14px;
+  color: #fff; font-size: 1rem; cursor: pointer;
+}
+.srw-body {
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.2);
+  padding: 16px; max-height: 70vh; overflow-y: auto;
+}
+.srw-product { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; color: var(--orange); }
+.srw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+.srw-item { background: var(--bg); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(199,82,42,0.1); }
+.srw-label { font-size: 0.55rem; font-weight: 600; color: var(--text3); text-transform: uppercase; margin-bottom: 2px; }
+.srw-value { font-size: 0.8rem; font-weight: 500; }
+.srw-value.mono    { font-family: monospace; }
+.srw-value.expired { color: var(--red); }
+.srw-value.expiring{ color: var(--primary); }
+.srw-value.ok      { color: var(--teal); }
+.srw-manual { margin: 12px 0; padding: 10px; background: var(--bg); border-radius: 8px; }
+.srw-row { display: flex; gap: 8px; margin-top: 6px; }
+.srw-input {
+  flex: 1; padding: 8px;
+  background: var(--card);
+  border: 1px solid rgba(199,82,42,0.25);
+  border-radius: 6px; font-size: 0.85rem; color: var(--text);
+}
+.srw-qty { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0; }
+.srw-qty span { font-weight: 600; }
+.qty-input {
+  width: 50px; padding: 6px; text-align: center;
+  border: 1px solid rgba(199,82,42,0.3);
+  background: var(--bg); color: var(--text);
+  border-radius: 6px; font-size: 1rem; font-weight: 600;
+}
+.srw-actions { display: flex; gap: 8px; }
+.srw-actions .btn { padding: 12px; }
+.btn-outline {
+  background: transparent;
+  border: 2px solid var(--primary);
+  color: var(--primary);
+}
+
+.hidden { display: none !important; }
+.mono { font-family: 'Courier New', monospace; }
+.offline-tag {
+  position: fixed; top: calc(var(--hdr) + 4px); left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 10px;
+  background: var(--primary);
+  border-radius: 10px; font-size: 0.65rem; font-weight: 600;
+  color: #fff; display: none; z-index: 150;
+}
+.offline-tag.show { display: block; }
+.file-input { position: absolute; opacity: 0; pointer-events: none; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(199,82,42,0.3); border-radius: 4px; }
+```
+
   </style>
 </head>
 <body>
-  <!-- Splash Screen -->
-  <div id="splash">
-    <div class="splash-icon">📦</div>
-    <div class="splash-title">EXPIRY TRACKER</div>
-    <div class="splash-version">v6.1.0 • By VYSAKH</div>
-  </div>
-
-  <!-- Main App -->
-  <div id="app">
-    <!-- Header -->
-    <header class="header">
-      <button class="header-btn" id="btnMenu">☰</button>
-      <h1 class="header-title">Expiry Tracker</h1>
-      <button class="header-btn" id="btnToggleAPI">
-        🌐<span class="api-indicator on"></span>
-      </button>
+  <div class="app">
+    <header class="hdr">
+      <div class="logo">
+        <img src="icons/icon-48.png" alt="">
+        <span>GS1 Tracker</span>
+      </div>
+      <div class="hdr-btns">
+        <button class="hdr-btn" id="btnMenu">☰</button>
+      </div>
     </header>
 
-    <!-- Home Page -->
-    <div class="page active" id="page-home">
-      <!-- Stats -->
+```
+<div class="offline-tag" id="offlineTag">Offline</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<main class="main">
+  <!-- HOME -->
+  <div class="page active" id="page-home">
+    <div class="scan-card">
+      <div class="scan-title">Scan Barcode</div>
+      <div class="scan-sub">GS1-128, DataMatrix, EAN-13, UPC</div>
+      <div class="scan-frame" id="scannerFrame">
+        <div id="reader"></div>
+        <div class="scan-ph" id="scannerPlaceholder"><span>📷</span><p>Tap to scan</p></div>
+        <div class="vf" id="viewfinder">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="scan-line"></div>
+        </div>
+      </div>
+      <button class="scan-btn" id="btnScanner">
+        <span>📷</span><span id="btnScannerText">Start Scanner</span>
+      </button>
+    </div>
+
+    <div class="input-card">
+      <div class="input-label">Manual Entry</div>
+      <div class="input-row">
+        <input type="text" class="text-input" id="manualInput" placeholder="Enter barcode...">
+        <button class="add-btn" id="btnManualAdd">Add</button>
+      </div>
+    </div>
+
+    <section>
+      <div class="sec-head">
+        <h3 class="sec-title">Recent</h3>
+        <span class="sec-link" id="viewAllHistory">View All</span>
+      </div>
+      <div class="history-list" id="recentScans">
+        <div class="empty-state" id="emptyRecent"><span>📦</span><p>No scans yet</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="page" id="page-history">
+    <div class="search-bar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search...">
+    </div>
+    <div class="chips">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="expired">Expired</button>
+      <button class="chip" data-filter="expiring">Expiring</button>
+      <button class="chip" data-filter="ok">OK</button>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="empty-state" id="emptyHistory"><span>📋</span><p>No items</p></div>
+    </div>
+  </div>
+
+  <!-- BULK -->
+  <div class="page" id="page-manual">
+    <div class="sec-title" style="margin-bottom: 12px;">Bulk Entry</div>
+    <div class="bulk-card">
+      <textarea class="bulk-ta" id="bulkInput" placeholder="One barcode per line..."></textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnProcessBulk">Process</button>
+        <button class="btn btn-ghost" id="btnClearBulk">Clear</button>
+      </div>
       <div class="stats">
-        <div class="stat expired" onclick="filterBy('expired')">
-          <div class="stat-value" id="statExpired">0</div>
-          <div class="stat-label">Expired</div>
-        </div>
-        <div class="stat expiring" onclick="filterBy('expiring')">
-          <div class="stat-value" id="statExpiring">0</div>
-          <div class="stat-label">Expiring</div>
-        </div>
-        <div class="stat ok" onclick="filterBy('ok')">
-          <div class="stat-value" id="statOk">0</div>
-          <div class="stat-label">OK</div>
-        </div>
-      </div>
-
-      <!-- Scanner -->
-      <div class="input-section">
-        <div id="scannerBox">
-          <div id="reader"></div>
-        </div>
-        
-        <!-- Product Scan Prompt - Shows when product not found -->
-        <div id="productScanPrompt">
-          <div class="prompt-title">
-            ⚠️ Product Not Found - Scan Again!
-          </div>
-          <div class="prompt-data">
-            <div class="prompt-item">
-              <div class="prompt-label">GTIN</div>
-              <div class="prompt-value" id="promptGtin">-</div>
-            </div>
-            <div class="prompt-item">
-              <div class="prompt-label">Expiry</div>
-              <div class="prompt-value" id="promptExpiry">-</div>
-            </div>
-            <div class="prompt-item">
-              <div class="prompt-label">Batch</div>
-              <div class="prompt-value" id="promptBatch">-</div>
-            </div>
-            <div class="prompt-item">
-              <div class="prompt-label">Status</div>
-              <div class="prompt-value">Waiting for product scan...</div>
-            </div>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
-            Scan the <strong>product barcode</strong>, <strong>RMS code</strong>, or <strong>any barcode</strong> that identifies this product
-          </p>
-          <div class="prompt-actions">
-            <button class="btn btn-outline" id="btnManualEntry">✏️ Manual</button>
-            <button class="btn btn-outline" id="btnSkipLookup">⏭️ Skip</button>
-            <button class="btn btn-danger" id="btnCancelScan">✕ Cancel</button>
-          </div>
-        </div>
-        
-        <div class="input-row">
-          <input type="text" id="inputBarcode" class="input-field" placeholder="Scan or paste barcode..." autocomplete="off">
-          <button class="btn" id="btnScanner">
-            <span>📷</span> Scan
-          </button>
-        </div>
-
-        <!-- Bulk Paste -->
-        <div class="bulk-toggle collapsed" id="bulkToggle" onclick="toggleBulk()">
-          <span>📋 Bulk Paste</span>
-          <span class="bulk-count" id="bulkCount">0 lines</span>
-          <span class="bulk-arrow">▼</span>
-        </div>
-        <div id="bulkArea" class="hidden">
-          <textarea id="inputBulk" placeholder="Paste multiple barcodes here (one per line)..."></textarea>
-          <div id="bulkProgress"><div id="bulkProgressFill"></div></div>
-          <div id="bulkProgressText"></div>
-          <button class="btn btn-block" id="btnProcessBulk">Process All</button>
-        </div>
-      </div>
-
-      <!-- Recent Items -->
-      <h3 class="section-title">Recent Scans</h3>
-      <div id="recentList"></div>
-    </div>
-
-    <!-- History Page -->
-    <div class="page" id="page-history">
-      <div class="search-bar">
-        <input type="text" id="inputSearch" class="input-field" placeholder="Search products...">
-      </div>
-      <div class="filter-tabs">
-        <button class="filter-tab active" data-filter="all">All</button>
-        <button class="filter-tab" data-filter="expired">Expired</button>
-        <button class="filter-tab" data-filter="expiring">Expiring</button>
-        <button class="filter-tab" data-filter="ok">OK</button>
-      </div>
-      <div id="historyList"></div>
-    </div>
-
-    <!-- Settings Page -->
-    <div class="page" id="page-settings">
-      <div class="settings-card">
-        <div class="settings-title">📊 Master Database</div>
-        <div class="settings-desc">Products in database: <strong id="masterCount">0</strong></div>
-        <input type="file" id="fileMaster" accept=".csv,.txt" hidden>
-        <input type="file" id="fileAppend" accept=".csv,.txt" hidden>
-        <button class="btn btn-block" onclick="document.getElementById('fileMaster').click()">📤 Upload Master CSV</button>
-        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="document.getElementById('fileAppend').click()">➕ Append Products</button>
-        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="downloadTemplate()">📝 Download Template</button>
-      </div>
-
-      <div class="settings-card">
-        <div class="settings-title">🌐 API Lookup</div>
-        <div class="settings-desc">Auto-fetch product names from online databases</div>
-        <div class="settings-row">
-          <span>Enable API Lookup</span>
-          <label class="toggle">
-            <input type="checkbox" id="toggleAPI" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="settings-card">
-        <div class="settings-title">💾 Backup & Export</div>
-        <button class="btn btn-outline btn-block" onclick="exportCSV()">📊 Export as CSV</button>
-        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="downloadBackup()">💾 Download Backup</button>
-        <input type="file" id="fileRestore" accept=".json" hidden>
-        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="document.getElementById('fileRestore').click()">📥 Restore Backup</button>
-      </div>
-
-      <div class="settings-card">
-        <div class="settings-title">⚠️ Danger Zone</div>
-        <button class="btn btn-danger btn-block" onclick="clearHistory()">🗑️ Clear All History</button>
-        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="resetMaster()">🔄 Reset Master Data</button>
-      </div>
-
-      <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem;">
-        Expiry Tracker v6.1.0<br>
-        AI Startup by VYSAKH
-      </div>
-    </div>
-
-    <!-- Bottom Navigation -->
-    <nav class="nav">
-      <button class="nav-btn active" data-page="home">
-        <span class="nav-icon">🏠</span>
-        <span>Home</span>
-      </button>
-      <button class="nav-btn" data-page="history">
-        <span class="nav-icon">📋</span>
-        <span>History</span>
-      </button>
-      <button class="nav-btn" data-page="settings">
-        <span class="nav-icon">⚙️</span>
-        <span>Settings</span>
-      </button>
-    </nav>
-  </div>
-
-  <!-- Side Menu -->
-  <div id="menuOverlay"></div>
-  <div id="sideMenu">
-    <div class="menu-title">Expiry Tracker</div>
-    <div class="menu-item" onclick="exportCSV(); closeMenu();">📊 Export CSV</div>
-    <div class="menu-item" onclick="downloadBackup(); closeMenu();">💾 Download Backup</div>
-    <div class="menu-item" onclick="downloadTemplate(); closeMenu();">📝 CSV Template</div>
-    <div class="menu-divider"></div>
-    <div class="menu-item" onclick="showPage('settings'); closeMenu();">⚙️ Settings</div>
-  </div>
-
-  <!-- Edit Modal -->
-  <div class="modal" id="editModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">Edit Item</h3>
-        <button class="modal-close" onclick="closeModal()">×</button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="editId">
-        <div class="form-group">
-          <label class="form-label">Product Name</label>
-          <input type="text" id="editName" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">GTIN</label>
-          <input type="text" id="editGtin" class="form-input" readonly>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Expiry Date</label>
-          <input type="date" id="editExpiry" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Batch</label>
-          <input type="text" id="editBatch" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Quantity</label>
-          <input type="number" id="editQty" class="form-input" min="1" value="1">
-        </div>
-        <div class="form-group">
-          <label class="form-label">RMS Code</label>
-          <input type="text" id="editRms" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Supplier</label>
-          <input type="text" id="editSupplier" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Returnable</label>
-          <select id="editReturnable" class="form-input">
-            <option value="">Not Set</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-        <button class="btn" onclick="saveEdit()">Save</button>
+        <div class="stat"><div class="stat-num" id="statTotal">0</div><div class="stat-label">Total</div></div>
+        <div class="stat"><div class="stat-num" id="statValid">0</div><div class="stat-label">Valid</div></div>
+        <div class="stat"><div class="stat-num" id="statMatched">0</div><div class="stat-label">Matched</div></div>
       </div>
     </div>
   </div>
 
-  <!-- Manual Entry Modal - NEW -->
-  <div class="modal" id="manualEntryModal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 class="modal-title">✏️ Manual Entry</h3>
-        <button class="modal-close" onclick="closeManualEntryModal()">×</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
-          Product not found. Enter details manually:
-        </p>
-        <div class="form-group">
-          <label class="form-label">Product Name *</label>
-          <input type="text" id="manualName" class="form-input" placeholder="e.g. Voltaren Emulgel 100g">
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="sec-title" style="margin-bottom: 12px;">Settings</div>
+
+    <div class="settings-sec">
+      <div class="settings-hdr">📊 Master Data</div>
+      <div class="settings-body">
+        <div class="upload-area" id="uploadArea">
+          <input type="file" class="file-input" id="masterFileInput" accept=".csv,.tsv,.txt">
+          <span>📤</span>
+          <p>Upload CSV / TSV</p>
         </div>
-        <div class="form-group">
-          <label class="form-label">RMS Code</label>
-          <input type="text" id="manualRms" class="form-input" placeholder="e.g. 220123456">
-        </div>
-        <div class="form-group">
-          <label class="form-label">GTIN (from GS1)</label>
-          <input type="text" id="manualGtin" class="form-input" readonly>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Product Barcode (scanned)</label>
-          <input type="text" id="manualProductCode" class="form-input" readonly>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Expiry Date</label>
-          <input type="date" id="manualExpiry" class="form-input">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Batch</label>
-          <input type="text" id="manualBatch" class="form-input">
+        <div class="stats" style="margin-top: 10px;">
+          <div class="stat"><div class="stat-num" id="masterCount">0</div><div class="stat-label">Products</div></div>
+          <div class="stat"><div class="stat-num" id="historyCount">0</div><div class="stat-label">Scans</div></div>
+          <div class="stat"><div class="stat-num" id="lastUpdated">--</div><div class="stat-label">Updated</div></div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" id="btnCancelManual">Cancel</button>
-        <button class="btn" id="btnSaveManual">Save & Add</button>
+    </div>
+
+    <div class="settings-sec">
+      <div class="settings-hdr">⚙️ Options</div>
+      <div class="settings-body">
+        <div class="toggle-item"><span>🌙 Dark Mode</span><div class="toggle" id="toggleDarkMode"></div></div>
+        <div class="toggle-item"><span>📳 Haptics</span><div class="toggle on" id="toggleHaptic"></div></div>
+      </div>
+    </div>
+
+    <div class="settings-sec">
+      <div class="settings-hdr">📤 Export</div>
+      <div class="settings-body">
+        <button class="export-btn" id="btnExportCSV">📊 Export CSV</button>
+        <button class="export-btn" id="btnExportTSV">📑 Export TSV (Excel)</button>
+        <button class="export-btn danger-btn" id="btnClearAll">🗑️ Clear All</button>
       </div>
     </div>
   </div>
+</main>
 
-  <!-- Loading -->
-  <div id="loading">
-    <div class="spinner"></div>
-    <div id="loadingText">Loading...</div>
+<nav class="nav">
+  <button class="nav-btn active" data-page="home"><span>🏠</span><span>Home</span></button>
+  <button class="nav-btn" data-page="history"><span>📋</span><span>History</span></button>
+  <button class="nav-btn" data-page="manual"><span>📝</span><span>Bulk</span></button>
+  <button class="nav-btn" data-page="settings"><span>⚙️</span><span>Settings</span></button>
+</nav>
+
+<!-- Side Menu -->
+<div class="side-bg" id="sideMenuBg"></div>
+<div class="side-menu" id="sideMenu">
+  <h3>Menu</h3>
+  <div class="side-item" id="menuStore">🏪 Store Name</div>
+  <div class="side-item" id="menuExport">📊 Export CSV</div>
+  <div class="side-item" id="menuClear">🗑️ Clear History</div>
+  <div class="side-item" id="menuAbout">ℹ️ About</div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <div class="modal-head">Edit Item</div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Name</label><input type="text" class="form-control" id="editName"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">RMS</label><input type="text" class="form-control mono" id="editRms"></div>
+        <div class="form-group"><label class="form-label">Alshaya Code</label><input type="text" class="form-control mono" id="editAlshaya"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Brand</label><input type="text" class="form-control" id="editBrand"></div>
+        <div class="form-group"><label class="form-label">Qty</label><input type="number" class="form-control" id="editQty" min="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Expiry</label><input type="date" class="form-control" id="editExpiry"></div>
+        <div class="form-group"><label class="form-label">Batch</label><input type="text" class="form-control mono" id="editBatch"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Category</label>
+        <select class="form-control" id="editCategory">
+          <option value="medicine">💊 Medicine</option>
+          <option value="cosmetics">🧴 Cosmetics</option>
+          <option value="vitamins">💪 Vitamins</option>
+          <option value="baby">👶 Baby</option>
+          <option value="medical">🩺 Medical</option>
+          <option value="other">📦 Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Remarks</label><textarea class="form-control" id="editRemarks" rows="2"></textarea></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btnCancelEdit">Cancel</button>
+        <button class="btn btn-ghost" id="btnDeleteEdit" style="color: var(--red);">Delete</button>
+        <button class="btn btn-primary" id="btnSaveEdit">Save</button>
+      </div>
+    </div>
   </div>
+</div>
 
-  <!-- Toasts -->
-  <div id="toasts"></div>
+<!-- Store Modal -->
+<div class="modal-bg" id="storeModal">
+  <div class="modal">
+    <div class="modal-head">🏪 Store Name</div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Store Name (for export)</label>
+        <input type="text" class="form-control" id="storeNameInput" placeholder="OASIS PHARMACY">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="document.getElementById('storeModal').classList.remove('show')">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveStore">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+  </div>
 
   <script src="master-data.js"></script>
+
   <script src="app.js"></script>
+
 </body>
 </html>
