@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#00aa88">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Expiry Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #00aa88;
+      --primary-dark: #008866;
+      --bg: #0a0a0f;
+      --bg-card: #141420;
+      --bg-input: #1a1a28;
+      --text: #ffffff;
+      --text-muted: #888;
+      --border: #2a2a3a;
+      --expired: #ff4757;
+      --expiring: #ffa502;
+      --ok: #2ed573;
+      --api: #3498db;
+      --radius: 12px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+    
+    /* Splash Screen */
+    #splash {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, var(--bg) 0%, #1a1a2e 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.5s, visibility 0.5s;
+    }
+    #splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+    .splash-icon { font-size: 4rem; margin-bottom: 1rem; animation: bounce 1s infinite; }
+    .splash-title { font-size: 1.5rem; font-weight: 700; color: var(--primary); letter-spacing: 2px; }
+    .splash-version { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+    @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    
+    /* App Container */
+    #app { opacity: 0; transition: opacity 0.5s; display: flex; flex-direction: column; min-height: 100vh; }
+    #app.visible { opacity: 1; }
+    
+    /* Header */
+    .header {
+      background: var(--bg-card);
+      padding: 1rem;
+      padding-top: calc(var(--safe-top) + 1rem);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-title { flex: 1; font-size: 1.25rem; font-weight: 700; }
+    .header-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--bg-input);
+      border: none;
+      color: var(--text);
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+    .api-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-left: 4px;
+    }
+    .api-indicator.on { background: var(--ok); }
+    .api-indicator.off { background: var(--expired); }
+    
+    /* Pages */
+    .page { display: none; flex: 1; padding: 1rem; padding-bottom: calc(80px + var(--safe-bottom)); overflow-y: auto; }
+    .page.active { display: block; }
+    
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .stat:active { transform: scale(0.95); }
+    .stat-value { font-size: 2rem; font-weight: 700; font-family: monospace; }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+    .stat.expired .stat-value { color: var(--expired); }
+    .stat.expiring .stat-value { color: var(--expiring); }
+    .stat.ok .stat-value { color: var(--ok); }
+    
+    /* Input Area */
+    .input-section { margin-bottom: 1.5rem; }
+    .input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .input-field {
+      flex: 1;
+      padding: 1rem;
+      background: var(--bg-input);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 1rem;
+      font-family: monospace;
+    }
+    .input-field:focus { outline: none; border-color: var(--primary); }
+    .input-field::placeholder { color: var(--text-muted); }
+    
+    .btn {
+      padding: 1rem 1.5rem;
+      background: var(--primary);
+      border: none;
+      border-radius: var(--radius);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: var(--primary-dark); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.active { background: var(--expired); }
+    .btn-outline {
+      background: transparent;
+      border: 2px solid var(--border);
+      color: var(--text);
+    }
+    .btn-danger { background: var(--expired); }
+    .btn-block { width: 100%; justify-content: center; }
+    
+    /* Scanner */
+    #scannerBox {
+      display: none;
+      margin-bottom: 1rem;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: #000;
+    }
+    #scannerBox.active { display: block; }
+    #reader { width: 100%; }
+    #reader video { border-radius: var(--radius); }
+    
+    /* Product Scan Prompt - NEW */
+    #productScanPrompt {
+      display: none;
+      background: linear-gradient(135deg, #1a1a2e, #2a2a4e);
+      border: 2px solid var(--expiring);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      animation: pulse-border 2s infinite;
+    }
+    #productScanPrompt.active { display: block; }
+    @keyframes pulse-border {
+      0%, 100% { border-color: var(--expiring); }
+      50% { border-color: var(--primary); }
+    }
+    .prompt-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--expiring);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .prompt-data {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+    }
+    .prompt-item { background: var(--bg-input); padding: 0.5rem; border-radius: 6px; }
+    .prompt-label { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; }
+    .prompt-value { font-family: monospace; margin-top: 2px; }
+    .prompt-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .prompt-actions .btn { flex: 1; padding: 0.75rem; font-size: 0.85rem; }
+    
+    /* Bulk Area */
+    .bulk-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      cursor: pointer;
+      margin-bottom: 0.5rem;
+    }
+    .bulk-toggle.collapsed .bulk-arrow { transform: rotate(-90deg); }
+    .bulk-arrow { transition: transform 0.2s; }
+    .bulk-count { font-size: 0.8rem; color: var(--text-muted); }
+    #bulkArea { margin-bottom: 1rem; }
+    #bulkArea.hidden { display: none; }
+    #inputBulk {
+      width: 100%;
+      height: 120px;
+      padding: 1rem;
+      background: var(--bg-input);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: monospace;
+      font-size: 0.9rem;
+      resize: vertical;
+      margin-bottom: 0.5rem;
+    }
+    #bulkProgress {
+      display: none;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-bottom: 0.5rem;
+      overflow: hidden;
+    }
+    #bulkProgress.active { display: block; }
+    #bulkProgressFill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s; }
+    #bulkProgressText { display: none; font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-bottom: 0.5rem; }
+    #bulkProgressText.active { display: block; }
+    
+    /* Item Cards */
+    .section-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-muted); }
+    .item-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      border-left: 4px solid var(--border);
+      transition: transform 0.2s;
+    }
+    .item-card:active { transform: scale(0.98); }
+    .item-card.expired { border-left-color: var(--expired); }
+    .item-card.expiring { border-left-color: var(--expiring); }
+    .item-card.ok { border-left-color: var(--ok); }
+    .item-card.api { border-left-color: var(--api); background: linear-gradient(135deg, var(--bg-card), rgba(52, 152, 219, 0.1)); }
+    .item-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+    .item-name { font-weight: 600; font-size: 0.95rem; flex: 1; margin-right: 0.5rem; }
+    .item-badge {
+      font-size: 0.7rem;
+      padding: 4px 8px;
+      border-radius: 20px;
+      background: var(--bg-input);
+      font-family: monospace;
+    }
+    .item-details { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.8rem; }
+    .item-detail-label { color: var(--text-muted); }
+    .item-detail-value { font-family: monospace; }
+    .status-expired { color: var(--expired); }
+    .status-expiring { color: var(--expiring); }
+    .status-ok { color: var(--ok); }
+    .item-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+    .item-btn {
+      flex: 1;
+      padding: 0.5rem;
+      border: none;
+      border-radius: 6px;
+      background: var(--bg-input);
+      color: var(--text);
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .item-btn.delete:hover { background: var(--expired); }
+    
+    .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+    .empty-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+    .empty-title { font-size: 1.1rem; margin-bottom: 0.5rem; }
+    
+    /* History Page */
+    .search-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .filter-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+    .filter-tab {
+      padding: 0.5rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .filter-tab.active { background: var(--primary); border-color: var(--primary); color: white; }
+    
+    /* Settings Page */
+    .settings-card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border: 1px solid var(--border);
+    }
+    .settings-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .settings-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem; }
+    .settings-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .settings-row:last-child { border-bottom: none; }
+    
+    /* Toggle Switch */
+    .toggle {
+      position: relative;
+      width: 50px;
+      height: 28px;
+    }
+    .toggle input { display: none; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 28px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      left: 3px;
+      top: 3px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--primary); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
+    
+    /* Bottom Navigation */
+    .nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding-bottom: var(--safe-bottom);
+      z-index: 100;
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 0.75rem;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .nav-btn.active { color: var(--primary); }
+    .nav-icon { font-size: 1.25rem; }
+    
+    /* Side Menu */
+    #menuOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    #menuOverlay.active { opacity: 1; visibility: visible; }
+    #sideMenu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      background: var(--bg-card);
+      z-index: 201;
+      transform: translateX(-100%);
+      transition: transform 0.3s;
+      padding: 2rem 1rem;
+      padding-top: calc(var(--safe-top) + 2rem);
+    }
+    #sideMenu.active { transform: translateX(0); }
+    .menu-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 2rem; }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      border-radius: var(--radius);
+      cursor: pointer;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .menu-item:hover { background: var(--bg-input); }
+    .menu-divider { height: 1px; background: var(--border); margin: 1rem 0; }
+    
+    /* Modals */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    .modal.active { opacity: 1; visibility: visible; }
+    .modal-content {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 400px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-title { font-size: 1.1rem; font-weight: 600; }
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      border: none;
+      color: var(--text);
+      font-size: 1.25rem;
+      cursor: pointer;
+    }
+    .modal-body { padding: 1rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+    .form-input {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+    }
+    .form-input:focus { outline: none; border-color: var(--primary); }
+    .modal-footer { padding: 1rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; }
+    .modal-footer .btn { flex: 1; }
+    
+    /* Loading */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      z-index: 400;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    #loading.active { opacity: 1; visibility: visible; }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingText { margin-top: 1rem; color: var(--text-muted); }
+    
+    /* Toasts */
+    #toasts {
+      position: fixed;
+      bottom: calc(80px + var(--safe-bottom));
+      left: 1rem;
+      right: 1rem;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      pointer-events: none;
+    }
+    .toast {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      animation: slideUp 0.3s;
+      transition: opacity 0.3s;
+    }
+    .toast.success { border-color: var(--ok); background: rgba(46, 213, 115, 0.1); }
+    .toast.error { border-color: var(--expired); background: rgba(255, 71, 87, 0.1); }
+    .toast.warning { border-color: var(--expiring); background: rgba(255, 165, 2, 0.1); }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash">
+    <div class="splash-icon">📦</div>
+    <div class="splash-title">EXPIRY TRACKER</div>
+    <div class="splash-version">v6.1.0 • By VYSAKH</div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app">
+    <!-- Header -->
+    <header class="header">
+      <button class="header-btn" id="btnMenu">☰</button>
+      <h1 class="header-title">Expiry Tracker</h1>
+      <button class="header-btn" id="btnToggleAPI">
+        🌐<span class="api-indicator on"></span>
+      </button>
+    </header>
+
+    <!-- Home Page -->
+    <div class="page active" id="page-home">
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat expired" onclick="filterBy('expired')">
+          <div class="stat-value" id="statExpired">0</div>
+          <div class="stat-label">Expired</div>
+        </div>
+        <div class="stat expiring" onclick="filterBy('expiring')">
+          <div class="stat-value" id="statExpiring">0</div>
+          <div class="stat-label">Expiring</div>
+        </div>
+        <div class="stat ok" onclick="filterBy('ok')">
+          <div class="stat-value" id="statOk">0</div>
+          <div class="stat-label">OK</div>
+        </div>
+      </div>
+
+      <!-- Scanner -->
+      <div class="input-section">
+        <div id="scannerBox">
+          <div id="reader"></div>
+        </div>
+        
+        <!-- Product Scan Prompt - Shows when product not found -->
+        <div id="productScanPrompt">
+          <div class="prompt-title">
+            ⚠️ Product Not Found - Scan Again!
+          </div>
+          <div class="prompt-data">
+            <div class="prompt-item">
+              <div class="prompt-label">GTIN</div>
+              <div class="prompt-value" id="promptGtin">-</div>
+            </div>
+            <div class="prompt-item">
+              <div class="prompt-label">Expiry</div>
+              <div class="prompt-value" id="promptExpiry">-</div>
+            </div>
+            <div class="prompt-item">
+              <div class="prompt-label">Batch</div>
+              <div class="prompt-value" id="promptBatch">-</div>
+            </div>
+            <div class="prompt-item">
+              <div class="prompt-label">Status</div>
+              <div class="prompt-value">Waiting for product scan...</div>
+            </div>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+            Scan the <strong>product barcode</strong>, <strong>RMS code</strong>, or <strong>any barcode</strong> that identifies this product
+          </p>
+          <div class="prompt-actions">
+            <button class="btn btn-outline" id="btnManualEntry">✏️ Manual</button>
+            <button class="btn btn-outline" id="btnSkipLookup">⏭️ Skip</button>
+            <button class="btn btn-danger" id="btnCancelScan">✕ Cancel</button>
+          </div>
+        </div>
+        
+        <div class="input-row">
+          <input type="text" id="inputBarcode" class="input-field" placeholder="Scan or paste barcode..." autocomplete="off">
+          <button class="btn" id="btnScanner">
+            <span>📷</span> Scan
+          </button>
+        </div>
+
+        <!-- Bulk Paste -->
+        <div class="bulk-toggle collapsed" id="bulkToggle" onclick="toggleBulk()">
+          <span>📋 Bulk Paste</span>
+          <span class="bulk-count" id="bulkCount">0 lines</span>
+          <span class="bulk-arrow">▼</span>
+        </div>
+        <div id="bulkArea" class="hidden">
+          <textarea id="inputBulk" placeholder="Paste multiple barcodes here (one per line)..."></textarea>
+          <div id="bulkProgress"><div id="bulkProgressFill"></div></div>
+          <div id="bulkProgressText"></div>
+          <button class="btn btn-block" id="btnProcessBulk">Process All</button>
+        </div>
+      </div>
+
+      <!-- Recent Items -->
+      <h3 class="section-title">Recent Scans</h3>
+      <div id="recentList"></div>
+    </div>
+
+    <!-- History Page -->
+    <div class="page" id="page-history">
+      <div class="search-bar">
+        <input type="text" id="inputSearch" class="input-field" placeholder="Search products...">
+      </div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all">All</button>
+        <button class="filter-tab" data-filter="expired">Expired</button>
+        <button class="filter-tab" data-filter="expiring">Expiring</button>
+        <button class="filter-tab" data-filter="ok">OK</button>
+      </div>
+      <div id="historyList"></div>
+    </div>
+
+    <!-- Settings Page -->
+    <div class="page" id="page-settings">
+      <div class="settings-card">
+        <div class="settings-title">📊 Master Database</div>
+        <div class="settings-desc">Products in database: <strong id="masterCount">0</strong></div>
+        <input type="file" id="fileMaster" accept=".csv,.txt" hidden>
+        <input type="file" id="fileAppend" accept=".csv,.txt" hidden>
+        <button class="btn btn-block" onclick="document.getElementById('fileMaster').click()">📤 Upload Master CSV</button>
+        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="document.getElementById('fileAppend').click()">➕ Append Products</button>
+        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="downloadTemplate()">📝 Download Template</button>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-title">🌐 API Lookup</div>
+        <div class="settings-desc">Auto-fetch product names from online databases</div>
+        <div class="settings-row">
+          <span>Enable API Lookup</span>
+          <label class="toggle">
+            <input type="checkbox" id="toggleAPI" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-title">💾 Backup & Export</div>
+        <button class="btn btn-outline btn-block" onclick="exportCSV()">📊 Export as CSV</button>
+        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="downloadBackup()">💾 Download Backup</button>
+        <input type="file" id="fileRestore" accept=".json" hidden>
+        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="document.getElementById('fileRestore').click()">📥 Restore Backup</button>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-title">⚠️ Danger Zone</div>
+        <button class="btn btn-danger btn-block" onclick="clearHistory()">🗑️ Clear All History</button>
+        <button class="btn btn-outline btn-block" style="margin-top: 0.5rem" onclick="resetMaster()">🔄 Reset Master Data</button>
+      </div>
+
+      <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.8rem;">
+        Expiry Tracker v6.1.0<br>
+        AI Startup by VYSAKH
+      </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="nav">
+      <button class="nav-btn active" data-page="home">
+        <span class="nav-icon">🏠</span>
+        <span>Home</span>
+      </button>
+      <button class="nav-btn" data-page="history">
+        <span class="nav-icon">📋</span>
+        <span>History</span>
+      </button>
+      <button class="nav-btn" data-page="settings">
+        <span class="nav-icon">⚙️</span>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Side Menu -->
+  <div id="menuOverlay"></div>
+  <div id="sideMenu">
+    <div class="menu-title">Expiry Tracker</div>
+    <div class="menu-item" onclick="exportCSV(); closeMenu();">📊 Export CSV</div>
+    <div class="menu-item" onclick="downloadBackup(); closeMenu();">💾 Download Backup</div>
+    <div class="menu-item" onclick="downloadTemplate(); closeMenu();">📝 CSV Template</div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" onclick="showPage('settings'); closeMenu();">⚙️ Settings</div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal" id="editModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Item</h3>
+        <button class="modal-close" onclick="closeModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="form-group">
+          <label class="form-label">Product Name</label>
+          <input type="text" id="editName" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">GTIN</label>
+          <input type="text" id="editGtin" class="form-input" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expiry Date</label>
+          <input type="date" id="editExpiry" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Batch</label>
+          <input type="text" id="editBatch" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity</label>
+          <input type="number" id="editQty" class="form-input" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label class="form-label">RMS Code</label>
+          <input type="text" id="editRms" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supplier</label>
+          <input type="text" id="editSupplier" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Returnable</label>
+          <select id="editReturnable" class="form-input">
+            <option value="">Not Set</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+        <button class="btn" onclick="saveEdit()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Entry Modal - NEW -->
+  <div class="modal" id="manualEntryModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ Manual Entry</h3>
+        <button class="modal-close" onclick="closeManualEntryModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Product not found. Enter details manually:
+        </p>
+        <div class="form-group">
+          <label class="form-label">Product Name *</label>
+          <input type="text" id="manualName" class="form-input" placeholder="e.g. Voltaren Emulgel 100g">
+        </div>
+        <div class="form-group">
+          <label class="form-label">RMS Code</label>
+          <input type="text" id="manualRms" class="form-input" placeholder="e.g. 220123456">
+        </div>
+        <div class="form-group">
+          <label class="form-label">GTIN (from GS1)</label>
+          <input type="text" id="manualGtin" class="form-input" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Product Barcode (scanned)</label>
+          <input type="text" id="manualProductCode" class="form-input" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Expiry Date</label>
+          <input type="date" id="manualExpiry" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Batch</label>
+          <input type="text" id="manualBatch" class="form-input">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" id="btnCancelManual">Cancel</button>
+        <button class="btn" id="btnSaveManual">Save & Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="spinner"></div>
+    <div id="loadingText">Loading...</div>
+  </div>
+
+  <!-- Toasts -->
+  <div id="toasts"></div>
+
+  <script src="master-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
